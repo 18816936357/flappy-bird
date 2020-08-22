@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Document</title>
+    <link rel="stylesheet" type="text/css" href="">
+</head>
+<style type="text/css">
+    body,
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    dl,
+    dt,
+    dd {
+        margin: 0;
+        padding: 0;
+    }
+
+    ul,
+    ol {
+        list-style: none;
+    }
+
+    a {
+        color: #000;
+        text-decoration: none;
+    }
+
+    .clearfix::after {
+        display: block;
+        content: "";
+        clear: both;
+    }
+
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+    }
+
+    .stage {
+        width: 100%;
+        height: 100%;
+    }
+
+    .stage #bird {
+        overflow: hidden;
+        position: absolute;
+        top: 50vh;
+        left: 50vw;
+        margin-top: -15vh;
+        margin-left: -5vh;
+        /* background-color: red; */
+        /* height: 10vh; */
+    }
+
+    .stage .land {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+    }
+
+    .pipeUp {
+        position: absolute;
+        top: 0;
+        right: -20vw;
+        width: 20vw;
+        background: url("./images/pipe_down.png") no-repeat left bottom/cover;
+    }
+
+    .pipeDown {
+        z-index: 1;
+        position: absolute;
+        bottom: 15vh;
+        right: -20vw;
+        width: 20vw;
+        background: url("./images/pipe_up.png") no-repeat left top/cover;
+    }
+</style>
+
+<body>
+    <div class="stage">
+        <img id="bird" src="./images/bird0_0.png">
+    </div>
+</body>
+<script>
+    //设置全局中常用的变量
+    const config = {
+        //背景移动速度(vw)
+        vx: 0.5,
+        stage: document.querySelector('.stage'),
+        pipeDown_height: [],
+        cnt: 0,
+        bird: document.querySelector("#bird"),
+        hwRatio: window.innerHeight / window.innerWidth,
+        //控制游戏开始的总开关
+        gameToggle: true
+    }
+    /********
+        Bird 对象:自由落体fall/向上蹦jump
+    ********/
+    class Bird {
+        constructor() {
+            this.el = document.querySelector("#bird"),
+                //小部件开关
+                this.isStart = true;
+            this.urlIndex = 0;
+            this.url = [
+                "./images/bird0_0.png",
+                "./images/bird0_2.png",
+                "./images/bird0_1.png",
+            ]
+            this.state = {
+                //bird相对于初始位置进行translate位移的值
+                y: 0,
+                vy: 0,
+                g: 0.08,
+                //bird初始位置
+                Y0: 35,
+                X0: 45
+            }
+            //bird大小(vh),width=height
+            this.height = 10;
+            this.init();
+            this.start();
+        }
+        //注册事件
+        register() {
+            document.addEventListener("touchstart", this.jump)
+        }
+        init() {
+            this.el.style.height = this.height + "vh";
+        }
+        //游戏开始
+        start() {
+            this.register();
+            this.flap();
+            this.fall();
+        }
+        stop() {
+            document.removeEventListener("touchstart", this.jump)
+            this.isStart = false;
+        }
+        //自由落体   *******游戏核心部分 start******
+        fall = () => {
+            if (!config.gameToggle) {
+                this.stop();
+            }
+            //判断游戏结束
+            if (this.state.y >= 40 || this.isStart === false) {
+                config.gameToggle = false;
+                return
+            }
+            //bird角度配置
+            let deg;
+            if (this.state.vy < 1.3) {
+                deg = -35
+            } else if (this.state.vy < 2) {
+                deg = 45 * (this.state.vy - 1.2)
+            } else {
+                deg = 90;
+            }
+            //自由落体配置
+            this.state.y += this.state.vy;
+            this.state.vy += this.state.g;
+            this.el.style.transform = `translateY(${this.state.y}vh) rotate(${deg}deg)`;
+            requestAnimationFrame(() => this.fall());
+        }
+        // *******游戏核心部分 end******
+
+        //跳
+        jump = () => {
+            // 设置bird最高能到达的高度
+            if (this.state.y <= -45) {
+                this.state.vy = 0;
+                return
+            }
+            this.state.vy = -1.2;
+        }
+        //扇动翅膀
+        flap() {
+            if (this.isStart) {
+                this.urlIndex += 0.2;
+                this.el.setAttribute("src", this.url[Math.floor(this.urlIndex % 3)])
+                requestAnimationFrame(() => this.flap())
+            }
+        }
+    }
+
+    /********
+        MainStage对象:day和land的背景以及移动
+    ********/
+    class MainStage {
+        constructor() {
+            this.el = document.querySelector(".stage"),
+                this.bgUrl = {
+                    day: "./images/bg_day.png",
+                    land: "./images/land.png"
+                }
+            this.isStart = true;
+            this.state = {
+                landX: 0,
+                dayX: 0,
+                vx: config.vx
+            }
+            this.init();
+            this.start();
+        }
+        start() {
+            this.state.vx = config.vx;
+            this.move();
+        }
+        stop() {
+            this.isStart = false;
+        }
+        init() {
+            this.el.style.background = "url(\"./images/land.png\") repeat-X left bottom/100vw 15vh,url(\"./images/bg_day.png\") 0 0/cover"
+        }
+        move() {
+            if (!config.gameToggle) {
+                this.stop();
+            }
+            if (this.isStart) {
+                this.state.landX -= this.state.vx;
+                this.el.style.backgroundPosition = `${this.state.landX}vw bottom`
+                requestAnimationFrame(() => this.move())
+            }
+        }
+    }
+
+    /********
+        Pipe对象:
+    ********/
+    class Pipe {
+        constructor(pipeDown_height, distance_pipe) {
+            this.isStart = true;
+            this.oPipeUp = document.createElement("div");
+            this.oPipeDown = document.createElement("div");
+            this.pipeDown_height = pipeDown_height;
+            this.distance_pipe = distance_pipe;
+            this.state = {
+                x: 0,
+                vx: config.vx,
+            }
+            this.timer = 0;
+            this.init();
+            this.start();
+
+        }
+        start() {
+            this.move();
+        }
+        stop() {
+            this.isStart = false;
+        }
+        init() {
+            this.oPipeUp.classList.add('pipeUp');
+            config.stage.appendChild(this.oPipeUp);
+            this.oPipeDown.classList.add('pipeDown');
+            config.stage.appendChild(this.oPipeDown);
+            this.oPipeDown.style.height = this.pipeDown_height + 'vh'
+            this.oPipeUp.style.height = (85 - this.pipeDown_height - this.distance_pipe) + 'vh'
+        }
+        move() {
+            if (!config.gameToggle) {
+                this.stop();
+            }
+            if (this.isStart) {
+                //*****判断游戏结束*****
+                if (this.isBump()) { config.gameToggle = false }
+                this.state.x -= this.state.vx;
+                this.oPipeUp.style.transform = `translateX(${this.state.x}vw)`
+                this.oPipeDown.style.transform = `translateX(${this.state.x}vw)`
+                this.timer = requestAnimationFrame(() => this.move());
+                if (this.state.x <= -120) {
+                    cancelAnimationFrame(this.timer);
+                    config.stage.removeChild(this.oPipeUp);
+                    config.stage.removeChild(this.oPipeDown);
+                }
+            }
+        }
+        //判断是否碰撞:碰撞true,否则false
+        isBump() {
+            //先计算出bird,pipeup和pipedown各自四边距离上/左边框的长度(vw/vh)
+            // console.log(config.bird)
+            var birdLeft = bird.state.X0 + 5;
+            var birdRight = birdLeft + bird.height / config.hwRatio - 5;
+            var birdTop = bird.state.Y0 + bird.state.y + 3;
+            var birdBottom = birdTop + bird.height - 6;
+
+            var upLeft = 100 + this.state.x;
+            var upRight = upLeft + 20;
+            var upTop = 0;
+            var upBottom = 85 - this.pipeDown_height - this.distance_pipe;
+
+            var downLeft = 100 + this.state.x;
+            var downRight = upLeft + 20;
+            var downTop = 85 - this.pipeDown_height;
+            var downBottom = 85;
+            // console.log(birdRight < upLeft , birdLeft > upRight,birdTop > upBottom , birdBottom < upTop)
+            //bird与pipeup未碰撞
+            if (birdRight < upLeft || birdLeft > upRight || birdTop > upBottom || birdBottom < upTop) {
+                //bird与pipedown未碰撞
+                if (birdRight < downLeft || birdLeft > downRight || birdTop > downBottom || birdBottom < downTop) {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+            else {
+                return true;
+            }
+        }
+    }
+
+
+
+    let timer = setInterval(() => {
+        if (config.gameToggle) {
+            config.pipeDown_height.push(Math.floor(Math.random() * 30 + 10));
+            new Pipe(config.pipeDown_height[config.cnt++], 25);
+        }
+    }, 2000)
+
+
+    let bird = new Bird();
+    let stage = new MainStage();
+
+
+</script>
+
+</html>
