@@ -54,14 +54,41 @@
     }
 
     .stage #bird {
+        /* z-index: 99; */
+        display: block;
         overflow: hidden;
         position: absolute;
         top: 50vh;
         left: 50vw;
         margin-top: -15vh;
         margin-left: -5vh;
+        height: 10vh;
+    }
+
+    .stage .score {
+        position: absolute;
+        width: 100%;
+        height: 8vh;
         /* background-color: red; */
-        /* height: 10vh; */
+        text-align: right;
+    }
+
+    .stage .gameOver {
+        z-index: 10;
+        display: none;
+        position: absolute;
+        top: 25%;
+        left: 10vw;
+        width: 80vw;
+    }
+
+    .stage .restart {
+        z-index: 10;
+        /* display: none; */
+        position: absolute;
+        top: 40%;
+        left: 30%;
+        width: 42vw;
     }
 
     .stage .land {
@@ -90,18 +117,18 @@
 
 <body>
     <div class="stage">
-        <img id="bird" src="./images/bird0_0.png">
     </div>
 </body>
 <script>
+
     //设置全局中常用的变量
     const config = {
         //背景移动速度(vw)
         vx: 0.5,
         stage: document.querySelector('.stage'),
-        pipeDown_height: [],
         cnt: 0,
         bird: document.querySelector("#bird"),
+        restart: document.querySelector(".stage .restart"),
         hwRatio: window.innerHeight / window.innerWidth,
         //控制游戏开始的总开关
         gameToggle: true
@@ -111,9 +138,12 @@
     ********/
     class Bird {
         constructor() {
-            this.el = document.querySelector("#bird"),
-                //小部件开关
-                this.isStart = true;
+            this.el = document.createElement("img");
+            this.el.src = "./images/bird0_0.png";
+            this.el.id = "bird";
+            config.stage.appendChild(this.el);
+            //小部件开关
+            this.isStart = true;
             this.urlIndex = 0;
             this.url = [
                 "./images/bird0_0.png",
@@ -139,7 +169,7 @@
             document.addEventListener("touchstart", this.jump)
         }
         init() {
-            this.el.style.height = this.height + "vh";
+            // this.el.style.height = this.height + "vh";
         }
         //游戏开始
         start() {
@@ -159,6 +189,8 @@
             //判断游戏结束
             if (this.state.y >= 40 || this.isStart === false) {
                 config.gameToggle = false;
+                this.stop();
+                gameOver();
                 return
             }
             //bird角度配置
@@ -242,12 +274,12 @@
         Pipe对象:
     ********/
     class Pipe {
-        constructor(pipeDown_height, distance_pipe) {
+        constructor() {
             this.isStart = true;
             this.oPipeUp = document.createElement("div");
             this.oPipeDown = document.createElement("div");
-            this.pipeDown_height = pipeDown_height;
-            this.distance_pipe = distance_pipe;
+            this.pipeDown_height = Math.floor(Math.random() * 30 + 10);
+            this.distance_pipe = 25;
             this.state = {
                 x: 0,
                 vx: config.vx,
@@ -255,7 +287,8 @@
             this.timer = 0;
             this.init();
             this.start();
-
+            //分数只有在这个toggle为true时才能+1,当bird通过柱子后,toggle立马关闭,在该柱子回到初始位置时再打开
+            this.scoreToggle = true;
         }
         start() {
             this.move();
@@ -277,22 +310,26 @@
             }
             if (this.isStart) {
                 //*****判断游戏结束*****
-                if (this.isBump()) { config.gameToggle = false }
+                if (this.isBump()) {
+                    config.gameToggle = false;
+                    gameOver();
+                }
                 this.state.x -= this.state.vx;
                 this.oPipeUp.style.transform = `translateX(${this.state.x}vw)`
                 this.oPipeDown.style.transform = `translateX(${this.state.x}vw)`
                 this.timer = requestAnimationFrame(() => this.move());
                 if (this.state.x <= -120) {
-                    cancelAnimationFrame(this.timer);
-                    config.stage.removeChild(this.oPipeUp);
-                    config.stage.removeChild(this.oPipeDown);
+                    this.scoreToggle = true;
+                    this.state.x = 0;
+                    this.pipeDown_height = Math.floor(Math.random() * 30 + 10);
+                    this.oPipeDown.style.height = this.pipeDown_height + 'vh'
+                    this.oPipeUp.style.height = (85 - this.pipeDown_height - this.distance_pipe) + 'vh'
                 }
             }
         }
         //判断是否碰撞:碰撞true,否则false
         isBump() {
             //先计算出bird,pipeup和pipedown各自四边距离上/左边框的长度(vw/vh)
-            // console.log(config.bird)
             var birdLeft = bird.state.X0 + 5;
             var birdRight = birdLeft + bird.height / config.hwRatio - 5;
             var birdTop = bird.state.Y0 + bird.state.y + 3;
@@ -309,8 +346,13 @@
             var downBottom = 85;
             // console.log(birdRight < upLeft , birdLeft > upRight,birdTop > upBottom , birdBottom < upTop)
             //bird与pipeup未碰撞
+            if (birdLeft > upRight && this.scoreToggle) {
+                this.scoreToggle = false;
+                config.cnt++;
+                score.update(config.cnt);
+            }
             if (birdRight < upLeft || birdLeft > upRight || birdTop > upBottom || birdBottom < upTop) {
-                //bird与pipedown未碰撞
+                //bird与pipedown未碰撞(birdRight < downLeft || birdLeft > downRight省略)
                 if (birdRight < downLeft || birdLeft > downRight || birdTop > downBottom || birdBottom < downTop) {
                     return false;
                 } else {
@@ -322,19 +364,101 @@
             }
         }
     }
-
-
-
-    let timer = setInterval(() => {
-        if (config.gameToggle) {
-            config.pipeDown_height.push(Math.floor(Math.random() * 30 + 10));
-            new Pipe(config.pipeDown_height[config.cnt++], 25);
+    /********
+        score对象:
+    ********/
+    class Score {
+        constructor() {
+            this.imgSrc = [
+                "./images/font_048.png",
+                "./images/font_049.png",
+                "./images/font_050.png",
+                "./images/font_051.png",
+                "./images/font_052.png",
+                "./images/font_053.png",
+                "./images/font_054.png",
+                "./images/font_055.png",
+                "./images/font_056.png",
+                "./images/font_057.png",
+            ]
+            this.imgList = [];
+            this.init();
+            this.update(config.cnt);
         }
-    }, 2000)
+        init() {
+            this.scoreBg = document.createElement("div");
+            this.scoreBg.classList.add("score");
+            config.stage.appendChild(this.scoreBg)
+        }
+        update(num) {
+            this.scoreBg.innerHTML = "";
+            let numArr = num.toString().split("");
+            for (let i = 0, len = numArr.length; i < len; i++) {
+                this.imgList[i] = new Image();
+                this.imgList[i].src = this.imgSrc[numArr[i]];
+                this.scoreBg.appendChild(this.imgList[i]);
+            }
+        }
+    }
+    /********
+        GameOver模块:
+    ********/
+    function gameOver() {
+        let gameOver = document.createElement("img");
+        gameOver.src = "./images/text_game_over.png";
+        gameOver.classList.add("gameOver");
+        config.stage.appendChild(gameOver);
+        gameOver.style.display = "block";
+
+        let restart = document.createElement("img");
+        restart.src = "./images/button_play.png";
+        restart.classList.add("restart");
+        config.stage.appendChild(restart);
+        restart.style.display = "block";
+
+        restart.addEventListener("touchstart", function () {
+            config.cnt = 0;
+            config.stage.innerHTML = "";
+            config.gameToggle = true;
+            start();
+        })
+    }
+
+    let bird, score, stage;
+    function start() {
+        let timer = setTimeout(() => {
+            if (config.gameToggle) {
+                new Pipe();
+            }
+        }, 2000)
+        let timer2 = setTimeout(() => {
+            if (config.gameToggle) {
+                new Pipe();
+            }
+        }, 4000)
+
+        bird = new Bird();
+        stage = new MainStage();
+        score = new Score();
+        document.removeEventListener("touchstart", start);
+    }
+    // start();
+    stage = new MainStage();
+
+    let restart = document.createElement("img");
+    restart.src = "./images/button_play.png";
+    restart.classList.add("restart");
+    config.stage.appendChild(restart);
+    restart.style.display = "block";
+    restart.addEventListener("touchstart", function () {
+        config.cnt = 0;
+        config.stage.innerHTML = "";
+        config.gameToggle = true;
+        start();
+    })
 
 
-    let bird = new Bird();
-    let stage = new MainStage();
+
 
 
 </script>
